@@ -391,11 +391,11 @@ export const Preview = memo(({ sendMessage }: PreviewProps) => {
             title={isDeviceModeOn ? 'Switch to Responsive Mode' : 'Switch to Device Mode'}
           />
 
-          <IconButton
+          {/* <IconButton
             icon="i-ph:layout-light"
             onClick={() => setIsPreviewOnly(!isPreviewOnly)}
             title={isPreviewOnly ? 'Show Full Interface' : 'Show Preview Only'}
-          />
+          /> */}
 
           <IconButton
             icon={isFullscreen ? 'i-ph:arrows-in' : 'i-ph:arrows-out'}

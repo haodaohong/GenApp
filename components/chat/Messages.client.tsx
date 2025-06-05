@@ -1,35 +1,44 @@
 import type { Message } from 'ai';
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { classNames } from '@/utils/classNames';
 import { AssistantMessage } from './AssistantMessage';
 import { UserMessage } from './UserMessage';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { chatId } from '@/lib/persistence/useChatHistory';
+import { chatId, appId } from '@/lib/persistence/useChatHistory';
 import { toast } from 'react-toastify';
 import WithTooltip from '@/components/ui/Tooltip';
 import { useStore } from '@nanostores/react';
 import { profileStore } from '@/lib/stores/profile';
 import { forwardRef } from 'react';
 import type { ForwardedRef } from 'react';
+import { Dialog, DialogRoot, DialogTitle, DialogDescription, DialogButton } from '@/components/ui/Dialog';
 
 interface MessagesProps {
   id?: string;
   className?: string;
   isStreaming?: boolean;
   messages?: Message[];
+  saveChat?: (messageId?: string) => Promise<void>;
 }
 
 export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
   (props: MessagesProps, ref: ForwardedRef<HTMLDivElement> | undefined) => {
-    const { id, isStreaming = false, messages = [] } = props;
+    const { id, isStreaming = false, messages = [], saveChat } = props;
     const searchParams = useSearchParams();
     const router = useRouter();
     const profile = useStore(profileStore);
+    const [openDialog, setOpenDialog] = useState(false);
+    const [commitSha, setCommitSha] = useState<any>(null);
+    const [currentMessageId, setCurrentMessageId] = useState<string>('');
 
-    const handleRewind = (messageId: string) => {
-      const searchParams = new URLSearchParams(location.search);
-      searchParams.set('rewindTo', messageId);
-      window.location.search = searchParams.toString();
+    const handleRewind = async (messageId: string, commitSha: any) => {
+      setCommitSha(commitSha);
+      setCurrentMessageId(messageId);
+      setOpenDialog(true);
+    };
+
+    const closeDialog = () => {
+      setOpenDialog(false);
     };
 
     const handleFork = async (messageId: string) => {
@@ -107,10 +116,10 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
                   </div>
                   {!isUserMessage && (
                     <div className="flex gap-2 flex-col lg:flex-row">
-                      {messageId && (
+                      {messageId && message.annotations?.find((annotation) => (annotation as { type: string }).type === 'commitSha') && (
                         <WithTooltip tooltip="Revert to this message">
                           <button
-                            onClick={() => handleRewind(messageId)}
+                            onClick={() => handleRewind(messageId, message.annotations?.find((annotation) => (annotation as { type: string }).type === 'commitSha'))}
                             key="i-ph:arrow-u-up-left"
                             className={classNames(
                               'i-ph:arrow-u-up-left',
@@ -139,6 +148,52 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
         {isStreaming && (
           <div className="text-center w-full text-bolt-elements-textSecondary i-svg-spinners:3-dots-fade text-4xl mt-4"></div>
         )}
+
+            <DialogRoot open={openDialog}>
+              <Dialog onBackdrop={closeDialog} onClose={closeDialog}>
+              <>
+                    <div className="p-6 bg-white dark:bg-gray-950">
+                      <DialogTitle className="text-gray-900 dark:text-white">Revert Chat?</DialogTitle>
+                      <DialogDescription className="mt-2 text-gray-600 dark:text-gray-400">                   
+                          <span className="mt-2"> Are you sure you want to revert to this message?</span>
+                      </DialogDescription>
+                    </div>
+                    <div className="flex justify-end gap-3 px-6 py-4 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">
+                      <DialogButton type="secondary" onClick={closeDialog}>
+                        Cancel
+                      </DialogButton>
+                      <DialogButton
+                        type="danger"
+                        onClick={async (event) => {
+                           const response = await fetch('/api/revert', {
+                              method: 'POST',
+                              body: JSON.stringify({ appName: appId.get(), commitSha: commitSha.commitSha }),
+                            });
+
+                            
+                            closeDialog();
+
+                            // await fetch('/api/chats', {
+                            //   method: 'POST',
+                            //   body: JSON.stringify({
+                            //     id: chatId.get(),
+                            //     messages: truncatedMessages,
+                            //     urlId: appId.get(),
+                            //   }),
+                            // });
+                            await saveChat?.(currentMessageId);
+
+                            // const searchParams = new URLSearchParams(location.search);
+                            // searchParams.set('rewindTo', currentMessageId);
+                            window.location.search = searchParams.toString();
+                        }}
+                      >
+                        Revert
+                      </DialogButton>
+                    </div>
+                  </>
+              </Dialog>
+            </DialogRoot>
       </div>
     );
   },

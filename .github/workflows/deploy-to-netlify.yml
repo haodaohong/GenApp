@@ -1,0 +1,78 @@
+name: Deploy to Netlify
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository_url:
+        description: 'GitHub Repository URL'
+        required: true
+      netlify_auth_token:
+        description: 'Netlify Auth Token'
+        required: true
+      netlify_site_id:
+        description: 'Netlify Site ID'
+        required: true
+      github_token:
+        description: 'GitHub Token'
+        required: true
+      app_id:
+        description: 'App ID'
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.inputs.repository_url }}
+          token: ${{ github.event.inputs.github_token }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build project
+        run: pnpm run build
+
+      - name: Cache Netlify CLI
+        id: cache-netlify
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-netlify-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-netlify-
+
+      - name: Install Netlify CLI
+        if: steps.cache-netlify.outputs.cache-hit != 'true'  # 仅在缓存未命中时执行
+        run: pnpm add -g netlify-cli@19.1.5 # 指定版本以加快下载并确保一致性
+
+      - name: Deploy to Netlify
+        id: deploy
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ github.event.inputs.netlify_auth_token }}
+          NETLIFY_SITE_ID: ${{ github.event.inputs.netlify_site_id }}
+        run: netlify deploy --prod --dir=dist || echo "Deploy failed"
+
+      - name: Send notification to Genfly
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ] && [ "${{ steps.deploy.outcome }}" == "success" ]; then
+            STATUS="completed"
+          else
+            STATUS="failed"
+          fi
+          curl -X POST https://www.genfly.dev/api/send \
+            -H "Content-Type: application/json" \
+            -d "{\"clientId\": \"${{ github.event.inputs.app_id }}\", \"status\": \"$STATUS\"}"

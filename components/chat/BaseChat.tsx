@@ -75,6 +75,7 @@ interface BaseChatProps {
   actionAlert?: ActionAlert;
   clearAlert?: () => void;
   data?: JSONValue[] | undefined;
+  saveChat?: (messageId?: string) => Promise<void>;
 }
 
 export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
@@ -109,6 +110,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       actionAlert,
       clearAlert,
       data,
+      saveChat,
     },
     ref,
   ) => {
@@ -349,6 +351,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     className="flex flex-col "
                     messages={messages}
                     isStreaming={isStreaming}
+                    saveChat={saveChat}
                   />
                 </div>
               ) : null}
@@ -476,7 +479,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         files.forEach((file) => {
                           if (file.type.startsWith('image/')) {
                             // 检查文件大小是否超过300KB
-                            if (file.size > 400 * 1024) {
+                            if (file.size > 500 * 1024) {
                               toast.error('Image size cannot exceed 400KB');
                               return;
                             }
@@ -542,7 +545,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         minHeight: TEXTAREA_MIN_HEIGHT,
                         maxHeight: TEXTAREA_MAX_HEIGHT,
                       }}
-                      placeholder="How can Bolt help you today?"
+                      placeholder="How can genfly help you today?"
                       translate="no"
                     />
                       <SendButton
@@ -586,7 +589,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         <IconButton title="Upload file" className="transition-all" onClick={() => handleFileUpload()}>
                           <div className="i-ph:paperclip text-xl"></div>
                         </IconButton>
-                        <IconButton
+                        {/* <IconButton
                           title="Enhance prompt"
                           disabled={input?.length === 0 || enhancingPrompt}
                           className={classNames('transition-all', enhancingPrompt ? 'opacity-100' : '')}
@@ -600,7 +603,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                           ) : (
                             <div className="i-bolt:stars text-xl"></div>
                           )}
-                        </IconButton>
+                        </IconButton> */}
 
                         {/* <SpeechRecognitionButton
                           isListening={isListening}

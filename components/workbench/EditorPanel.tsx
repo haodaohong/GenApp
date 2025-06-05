@@ -32,6 +32,7 @@ interface EditorPanelProps {
   onFileSelect?: (value?: string) => void;
   onFileSave?: OnEditorSave;
   onFileReset?: () => void;
+  isFileSaving?: boolean;
 }
 
 const DEFAULT_EDITOR_SIZE = 100 - DEFAULT_TERMINAL_SIZE;
@@ -50,6 +51,7 @@ export const EditorPanel = memo(
     onEditorScroll,
     onFileSave,
     onFileReset,
+    isFileSaving,
   }: EditorPanelProps) => {
     renderLogger.trace('EditorPanel');
 
@@ -98,8 +100,8 @@ export const EditorPanel = memo(
                     {activeFileUnsaved && (
                       <div className="flex gap-1 ml-auto -mr-1.5">
                         <PanelHeaderButton onClick={onFileSave}>
-                          <div className="i-ph:floppy-disk-duotone" />
-                          Save
+                        <div className={`${isFileSaving ? 'i-ph:circle-notch-duotone animate-spin' : 'i-ph:floppy-disk-duotone'}`} />
+                        {isFileSaving ? 'Saving...' : 'Save'}
                         </PanelHeaderButton>
                         <PanelHeaderButton onClick={onFileReset}>
                           <div className="i-ph:clock-counter-clockwise-duotone" />

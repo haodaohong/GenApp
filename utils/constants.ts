@@ -42,5 +42,14 @@ export const STARTER_TEMPLATES: Template[] = [
     tags: ['react', 'vite', 'frontend'],
     icon: 'i-bolt:react',
     categorys: ['SaaS System', 'Cloud Management System', 'Subscription Service System', 'Dashboard System', "Productivity Tool"]
+  },
+  {
+    name: 'next-ts-template',
+    label: 'React + Next.js + typescript',
+    description: 'React starter template powered by Next.js for fast development experience',
+    githubRepo: 'wordixai/next-ts-template',
+    tags: ['react', 'nextjs', 'frontend'],
+    icon: 'i-bolt:react',
+    categorys: ['Landing Page', 'Marketing', 'Information Display']
   }
 ];

@@ -1,8 +1,8 @@
 // app/api/update-files/route.ts
 import { NextResponse } from 'next/server';
-import { updateFileList } from '@/utils/machines';
+import { updateFileList, gitPullOriginMain } from '@/utils/machines';
 import { auth } from 'auth';
-
+import { pushFiles } from '@/utils/git/push-files';
 
 export const runtime = 'edge';
 
@@ -40,14 +40,32 @@ export async function POST(request: Request) {
         });
 
         try {
-          await updateFileList(
-            appName,
-            files,
-            installDependencies,
-            async (result: any) => {
-              await noticeHost(result);
-            }
-          );
+          // await updateFileList(
+          //   appName,
+          //   files,
+          //   installDependencies,
+          //   async (result: any) => {
+          //     await noticeHost(result);
+          //   }
+          // );
+
+          // const result = await pushFiles({
+          //   token: process.env.NEXT_PUBLIC_GITHUB_TOKEN || '',
+          //   owner: 'wordixai',
+          //   repo: `genfly-${appName}`,
+          //   files,
+          //   message: 'Update files',
+          // });
+
+          // await noticeHost({
+          //   event: 'pushtorepo',
+          //   data: {
+          //     message: 'Pushing files to GitHub',
+          //     ...result,
+          //   },
+          // });
+
+          // await gitPullOriginMain(appName);
 
           // 发送完成消息
           await noticeHost({
@@ -55,7 +73,6 @@ export async function POST(request: Request) {
             result: 'Update completed',
           });
         } catch (error) {
-          console.log('error **********', error);
           await noticeHost({
             event: 'error',
             error: error instanceof Error ? error.message : 'Unknown error occurred',

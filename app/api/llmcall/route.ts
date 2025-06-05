@@ -130,7 +130,7 @@ export async function POST(request: Request) {
           },
         ],
         model: providerInfo.getModelInstance({
-          model: modelDetails.name,
+          model: 'deepseek/deepseek-chat', // 强制使用 deepseek-chat 模型
           serverEnv: env,
           apiKeys,
           providerSettings,

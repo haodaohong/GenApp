@@ -10,14 +10,14 @@ import { createScopedLogger } from '@/utils/logger';
 import { createFilesContext, extractPropertiesFromMessage } from './utils';
 import { getFilePaths } from './select-context';
 
-export type Messages = Message[];
+export type Messages = (Message & { commitSha?: string })[];
 
 export type StreamingOptions = Omit<Parameters<typeof _streamText>[0], 'model'>;
 
 const logger = createScopedLogger('stream-text');
 
 export async function streamText(props: {
-  messages: Omit<Message, 'id'>[];
+  messages: Omit<Message, 'id' | 'commitSha'>[];
   env?: Record<string, string>;
   options?: StreamingOptions;
   apiKeys?: Record<string, string>;

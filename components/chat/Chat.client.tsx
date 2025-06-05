@@ -25,6 +25,13 @@ import { useSearchParams } from 'next/navigation';
 import { createSampler } from '@/utils/sampler';
 import { getTemplates, selectStarterTemplate } from '@/utils/selectStarterTemplate';
 import { logStore } from '@/lib/stores/logs';
+import { appId, chatId } from '@/lib/persistence/useChatHistory'
+import type { ProgressAnnotation } from '@/types/context';
+import { STARTER_TEMPLATES } from '@/utils/constants';
+
+
+import { v4 as uuidv4 } from 'uuid';
+
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -121,6 +128,8 @@ export const ChatImpl = memo(
     const files = useStore(workbenchStore.files);
     const actionAlert = useStore(workbenchStore.alert);
     const { activeProviders, promptId, autoSelectTemplate, contextOptimizationEnabled } = useSettings();
+    const [progressAnnotations, setProgressAnnotations] = useState<ProgressAnnotation[]>([]);
+    const [streamStatus, setStreamStatus] = useState<string | null>('start');
 
     const [model, setModel] = useState(() => {
       const savedModel = Cookies.get('selectedModel');
@@ -136,7 +145,7 @@ export const ChatImpl = memo(
     const [animationScope, animate] = useAnimate();
 
     const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
-
+  
     const {
       messages,
       isLoading,
@@ -157,6 +166,7 @@ export const ChatImpl = memo(
         files,
         promptId,
         contextOptimization: contextOptimizationEnabled,
+        appId: appId.get() || ''
       },
       sendExtraMessageFields: true,
       onError: (e) => {
@@ -167,13 +177,12 @@ export const ChatImpl = memo(
           error: e.message,
         });
         toast.error(
-          'There was an error processing your request: ' + (e.message ? e.message : 'No details were returned'),
+          `There was an error processing your request: ${e.message || 'No details were returned'}`,
         );
       },
       onFinish: (message, response) => {
         const usage = response.usage;
         setData(undefined);
-
         if (usage) {
           console.log('Token usage:', usage);
           logStore.logProvider('Chat response completed', {
@@ -185,6 +194,7 @@ export const ChatImpl = memo(
             messageLength: message.content.length,
           });
         }
+        setStreamStatus('completed');
 
         setTimeout(async () => {
           // 等待部署完成
@@ -210,7 +220,13 @@ export const ChatImpl = memo(
 
             console.log('uploadedFiles length', validFiles.length);
 
-            workbenchStore.uploadFilesTomachine(validFiles, workbenchStore.installDependencies.get());
+            // setMessages(messages.map(msg => 
+            //   msg.id === messages[messages.length - 1].id 
+            //     ? { ...msg, commitSha: 'xuv112342341241341' }
+            //     : msg
+            // ));
+
+            // workbenchStore.uploadFilesTomachine(validFiles, workbenchStore.installDependencies.get());
             workbenchStore.saveAllFiles();
 
             if (workbenchStore.genType.get() === 'fix-error') {
@@ -223,6 +239,7 @@ export const ChatImpl = memo(
       initialMessages,
       initialInput: Cookies.get(PROMPT_COOKIE_KEY) || '',
     });
+
     
     const TEXTAREA_MAX_HEIGHT = chatStarted ? 400 : 200;
 
@@ -257,6 +274,56 @@ export const ChatImpl = memo(
         });
       }
     }, [model, provider, searchParams, append, runAnimation]);
+
+    useEffect(() => {
+      if (chatData) {
+        const progressList = chatData.filter(
+          (x) => typeof x === 'object' && (x as any).type === 'progress',
+        ) as ProgressAnnotation[];
+        setProgressAnnotations(progressList);
+      }
+    }, [chatData]);
+
+
+
+    const saveChat = async (messageId?: string) => {
+      try {
+
+        // Find the index of the current message
+        const currentMessageIndex = messages.findIndex(m => m.id === messageId);
+                                  
+        let truncatedMessages: Message[] = messages;
+        // If found, keep only messages up to and including the current message
+        if (currentMessageIndex !== -1 && currentMessageIndex >= 2) {
+            truncatedMessages = messages.slice(0, currentMessageIndex - 1);
+        }
+
+        await fetch('/api/chats', {
+          method: 'POST',
+          body: JSON.stringify({
+            id: chatId.get(),
+            messages: truncatedMessages,
+            urlId: appId.get(),
+            description: description,
+            metadata: {
+              streamStatus,
+            },  
+          }),
+        });
+      } catch (error) {
+        console.error('Failed to save chat:', error);
+      }
+    };
+    
+
+
+    useEffect(() => {
+      if (streamStatus === 'completed') {
+        saveChat();
+        workbenchStore.switchToPreview('complete');
+      }
+    }, [streamStatus]);
+
 
     const { enhancingPrompt, promptEnhanced, enhancePrompt, resetEnhancer } = usePromptEnhancer();
     const { parsedMessages, parseMessages } = useMessageParser();
@@ -319,6 +386,7 @@ export const ChatImpl = memo(
         return;
       }
 
+
       if (isLoading) {
         abort();
         return;
@@ -327,6 +395,8 @@ export const ChatImpl = memo(
       runAnimation();
       workbenchStore.startStreaming.set(false);
       workbenchStore.hasSendLLM.set(true);
+      setProgressAnnotations([]);
+      setStreamStatus('start');
 
       if (!chatStarted) {
         setFakeLoading(true);
@@ -337,6 +407,10 @@ export const ChatImpl = memo(
             model,
             provider,
           });
+
+          const templateData = STARTER_TEMPLATES.find(t => t.name === template);
+
+          workbenchStore.templateData.set(templateData || null);
 
           if (template !== 'blank') {
             const temResp = await getTemplates(template, title).catch((e) => {
@@ -380,9 +454,15 @@ export const ChatImpl = memo(
                   annotations: ['hidden'],
                 },
               ]);
-              reload();
-              setFakeLoading(false);
-              setImageDataList([]);
+
+              const newId = uuidv4();
+              const appName = `app-${newId}`;
+              appId.set(appName);
+              Promise.resolve().then(() => {
+                reload();
+                setFakeLoading(false);
+                setImageDataList([]);
+              });
 
               return;
             }
@@ -520,6 +600,10 @@ export const ChatImpl = memo(
       });
     }, [messages, parsedMessages]);
 
+    function getMessageContents() {
+      return messages;
+    }
+
     const enhancePromptCallback = useCallback(() => {
       enhancePrompt(
         input,
@@ -570,6 +654,7 @@ export const ChatImpl = memo(
         actionAlert={actionAlert}
         clearAlert={clearAlertCallback}
         data={chatData}
+        saveChat={saveChat}
       />
     );
   },

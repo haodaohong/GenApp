@@ -3,6 +3,8 @@ import type { ProviderInfo } from '@/types/model';
 import type { Template } from '@/types/template';
 import { STARTER_TEMPLATES } from './constants';
 import Cookies from 'js-cookie';
+import { toast } from 'react-toastify';
+
 
 const starterTemplateSelectionPrompt = (templates: Template[]) => `
 You are an experienced developer who helps people choose the best starter template for their projects.
@@ -81,7 +83,13 @@ export const selectStarterTemplate = async (options: { message: string; model: s
     method: 'POST',
     body: JSON.stringify(requestBody),
   });
+
+  if (!response.ok) {
+    toast.error('Failed to fetch response');
+  }
+
   const respJson: { text: string } = await response.json();
+
 
   const { text } = respJson;
   const selectedTemplate = parseSelectedTemplate(text);
@@ -112,7 +120,7 @@ const getGitHubRepoContent = async (
 
     // Add your GitHub token if needed
     if (token) {
-      headers.Authorization = 'token ' + token;
+      headers.Authorization = `token ${token}`;
     }
 
     // Fetch contents of the path

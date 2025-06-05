@@ -152,22 +152,27 @@ export function useChatHistory() {
         }
 
         if (initialMessages.length === 0 && !currentId) {
-          const newId = uuidv4();
-          chatId.set(newId);
-          const appName = `app-${newId}`;
-          appId.set(appName);
+      
+          chatId.set(appId.get()?.replace('app-', '') || '');
+
           workbenchStore.setDeploymentStatus('pending');
+
+          const templateData = workbenchStore.templateData.get();
           
           await fetch('/api/deploy', {
             method: 'POST',
-            body: JSON.stringify({ appName }),
+            body: JSON.stringify({ 
+              appName: appId.get(),
+              sourceRepoUrl: `https://github.com/${templateData?.githubRepo}`,
+              dockerImage: templateData?.name.includes('next') ? "registry.fly.io/fly-deploy-next:latest" : "registry.fly.io/ancodeai-app:latest"
+            }),
           });
           
           workbenchStore.setDeploymentStatus('completed');
           workbenchStore.setIsFirstDeploy(true);
 
           if (!urlId) {
-            navigateChat(newId);
+            navigateChat(chatId.get() || '');
           }
         }
 
@@ -178,8 +183,9 @@ export function useChatHistory() {
           description: description.get(),
           metadata: chatMetadata.get()
         };
+
         
-        await debouncedSaveChat(saveParams);
+        // await debouncedSaveChat(saveParams);
       } catch (error) {
         toast.error('Failed to save chat');
         console.error(error);

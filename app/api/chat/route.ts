@@ -16,6 +16,9 @@ import { auth } from 'auth';
 import { withDb } from '@/db/edge-db';
 import { credits } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
+import { extractAllFilePathsAndContents } from '@/utils/extract';
+import { pushFiles } from '@/utils/git/push-files';
+import { gitPullOriginMain } from '@/utils/machines';
 
 const logger = createScopedLogger('api.chat');
 
@@ -41,11 +44,12 @@ function parseCookies(cookieHeader: string | null): Record<string, string> {
 }
 
 export async function POST(request: Request) {
-  const { messages, files, promptId, contextOptimization } = await request.json() as {
+  const { messages, files, promptId, contextOptimization, appId } = await request.json() as {
     messages: Messages;
     files: any;
     promptId?: string;
     contextOptimization: boolean;
+    appId: string;
   };
 
 
@@ -232,6 +236,36 @@ export async function POST(request: Request) {
                   totalTokens: cumulativeUsage.totalTokens,
                 },
               });
+
+
+              const filePathsAndContents = extractAllFilePathsAndContents(content);
+
+              const result = await pushFiles({
+                token: process.env.NEXT_PUBLIC_GITHUB_TOKEN || '',
+                owner: 'wordixai',
+                repo: `genfly-${appId}`,
+                files: filePathsAndContents,
+                message: 'Update files',
+              });
+
+              console.log('result **********', result);
+
+              dataStream.writeData({
+                type: 'progress',
+                label: 'response',
+                status: 'in-progress',
+                order: progressCounter++,
+                message: 'Pushing files to repo'
+              } satisfies ProgressAnnotation);
+              dataStream.writeMessageAnnotation({
+                type: 'commitSha',
+                commitSha: result.commitSha || '',
+              });
+
+              const isReInstall = filePathsAndContents.some(x => x.path.includes('package.json'));
+              const gitPullResult = await gitPullOriginMain(appId, isReInstall);   
+              console.log('gitPullResult **********', gitPullResult);
+              
               dataStream.writeData({
                 type: 'progress',
                 label: 'response',
@@ -239,6 +273,7 @@ export async function POST(request: Request) {
                 order: progressCounter++,
                 message: 'Response Generated',
               } satisfies ProgressAnnotation);
+
               await new Promise((resolve) => setTimeout(resolve, 0));
               return;
             }

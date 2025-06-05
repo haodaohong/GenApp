@@ -1,0 +1,1 @@
+ALTER TABLE "deploy" ADD COLUMN "url" text;

@@ -1,0 +1,77 @@
+name: Revert Commit in Remote Repo
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'The commit SHA to revert'
+        required: true
+      branch:
+        description: 'The branch to operate on'
+        required: true
+      repo_name:
+        description: 'The repository name (e.g., genfly-${appName})'
+        required: true
+      github_token:
+        description: 'The GitHub token for authentication'
+        required: true
+      fly_app_name:
+        description: 'The Fly.io app name'
+        required: true
+
+jobs:
+  revert-remote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout workflow repository
+        uses: actions/checkout@v4
+
+      - name: Clone source repository
+        run: |
+          git clone https://x-access-token:${{ github.event.inputs.github_token }}@github.com/wordixai/${{ github.event.inputs.repo_name }} /tmp/source-repo
+          cd /tmp/source-repo
+          git checkout ${{ github.event.inputs.branch }}
+
+      - name: Setup Git config
+        run: |
+          cd /tmp/source-repo
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+
+      - name: Force revert specified commit
+        run: |
+          cd /tmp/source-repo
+          git fetch --all
+          # Attempt to revert
+          git revert ${{ github.event.inputs.commit_sha }} --no-edit || {
+            # If revert fails due to conflicts, resolve by accepting the reverted state
+            echo "Conflicts detected, forcing revert by accepting reverted state"
+            # Reset index and working tree to match the reverted state
+            git checkout ${{ github.event.inputs.commit_sha }}^ -- .
+            # Add all changes to staging
+            git add .
+            # Continue the revert
+            git revert --continue
+          }
+
+      - name: Push changes
+        run: |
+          cd /tmp/source-repo
+          git push origin ${{ github.event.inputs.branch }}
+
+      - name: Trigger Fly revert via API
+        run: |
+          echo "Calling Fly revert API for app: ${{ github.event.inputs.fly_app_name }}"
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"fly_app_name\": \"${{ github.event.inputs.fly_app_name }}\"}" \
+            https://www.genfly.dev/api/fly-revert || {
+              echo "Failed to call Fly revert API"
+              exit 1
+            }
+          echo "Successfully triggered Fly revert API"
+
+      - name: Verify deployment
+        run: |
+          echo "Reverted commit ${{ github.event.inputs.commit_sha }} in: https://github.com/wordixai/${{ github.event.inputs.repo_name }}"
+          echo "Triggered Fly revert for app: ${{ github.event.inputs.fly_app_name }}"

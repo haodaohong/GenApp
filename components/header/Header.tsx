@@ -7,6 +7,7 @@ import { ChatDescription } from '@/lib/persistence/ChatDescription.client';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { useSession } from "next-auth/react"
+import { Badge } from '@/components/ui/Badge';
 
 export function Header() {
   const chat = useStore(chatStore);
@@ -27,6 +28,9 @@ export function Header() {
           <img src="/logo-04.png" alt="logo" className="w-[24px] inline-block dark:hidden" />
           <img src="/logo-04.png" alt="logo" className="w-[24px] inline-block hidden dark:block" />
         </a>
+        <Badge variant="outline" className="bg-green-500 text-white">
+          <span className="text-xs">Beta</span>
+        </Badge>
       </div>
       {chat.started && ( // Display ChatDescription and HeaderActionButtons only when the chat has started.
         <>

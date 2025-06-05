@@ -68,6 +68,7 @@ export const Workbench = memo(({ chatStarted, isStreaming, sendMessage }: Worksp
   const showWorkbench = useStore(workbenchStore.showWorkbench);
   const selectedFile = useStore(workbenchStore.selectedFile);
   const currentDocument = useStore(workbenchStore.currentDocument);
+  const isFileSaving = useStore(workbenchStore.isFileSaving);
   const unsavedFiles = useStore(workbenchStore.unsavedFiles);
   const files = useStore(workbenchStore.files);
   const selectedView = useStore(workbenchStore.currentView);
@@ -204,6 +205,7 @@ export const Workbench = memo(({ chatStarted, isStreaming, sendMessage }: Worksp
                     onEditorChange={onEditorChange}
                     onFileSave={onFileSave}
                     onFileReset={onFileReset}
+                    isFileSaving={isFileSaving}
                   />
                 </View>
                 <View

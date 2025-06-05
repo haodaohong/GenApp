@@ -9,7 +9,12 @@ const logger = createScopedLogger('api.deploy');
 export async function POST(request: Request) {
 
   try {
-    const data: { appName: string } = await request.json();
+    const data: { 
+      appName: string,
+      sourceRepoUrl: string,
+      flyApiToken: string,
+      dockerImage: string
+    } = await request.json();
 
     const session = await auth();
     if (!session) {
@@ -19,23 +24,54 @@ export async function POST(request: Request) {
       });
     }
 
-    const { appName } = data;
+    const { appName, sourceRepoUrl, dockerImage } = data;
+
+    if (!appName || !sourceRepoUrl) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
     logger.info('Deployment API called with data:', data);
 
     try {
-      const deployData = await deployApp(appName);
-      // logger.info('Successfully created machine for Fly.io application:', deployData);
+      const response = await fetch(
+        'https://api.github.com/repos/wordixai/clone-action/actions/workflows/clone.yml/dispatches',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.NEXT_PUBLIC_GITHUB_TOKEN}`,
+            Accept: 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ref: 'main',
+            inputs: {
+              source_repo_url: sourceRepoUrl,
+              new_repo_name: `genfly-${appName}`,
+              github_token: process.env.NEXT_PUBLIC_GITHUB_TOKEN,
+              fly_api_token: process.env.FLY_API_TOKEN,
+              fly_app_name: appName,
+              docker_image: dockerImage || "registry.fly.io/ancodeai-app:latest",
+            }
+          })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.statusText}`);
+      }
+
       return NextResponse.json({
         status: 'success',
-        message: 'Successfully created Fly.io application',
-        data: deployData,
+        message: 'Successfully triggered deployment workflow',
       });
     } catch (error) {
-      logger.error('Error creating Fly.io application:', error);
+      logger.error('Error triggering deployment workflow:', error);
       return NextResponse.json(
         {
           status: 'error',
-          message: 'Error creating Fly.io application',
+          message: 'Error triggering deployment workflow',
           error: error instanceof Error ? error.message : 'Unknown error',
         },
         { status: 500 }

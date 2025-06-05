@@ -18,6 +18,7 @@ import { description } from '@/lib/persistence';
 import Cookies from 'js-cookie';
 import { createSampler } from '@/utils/sampler';
 import type { ActionAlert } from '@/types/actions';
+import type { Template } from '@/types/template';
 
 import { appId} from '@/lib/persistence/useChatHistory'
 
@@ -52,8 +53,10 @@ export class WorkbenchStore {
   artifacts: Artifacts = map({});
   startStreaming: WritableAtom<boolean> = atom(false);
   tmpFiles: WritableAtom<{ path: string, content: string }[]> = atom([]);
+  templateData: WritableAtom<Template | null> = atom(null);
 
   genType: WritableAtom<string> = atom('');
+  isFileSaving: WritableAtom<boolean> = atom(false);
 
   deploymentStatus: WritableAtom<'pending' | 'completed' | null> = atom(null);
 
@@ -218,7 +221,29 @@ export class WorkbenchStore {
       return;
     }
 
+    this.isFileSaving.set(true);
+
+    const filePath = currentDocument.filePath.replace('/home/project/', '');
+
+    const result = await fetch('/api/save-file', {
+      method: 'POST',
+      body: JSON.stringify({
+        files: [
+          {
+            path: filePath,
+            content: currentDocument.value,
+          }
+        ],
+        appId: appId.get(),
+      }),
+    });
+
+    if (!result.ok) {
+      console.error('Error saving file:', result.statusText);
+    }
+
     await this.saveFile(currentDocument.filePath);
+    this.isFileSaving.set(false);
   }
 
   resetCurrentDocument() {
@@ -589,10 +614,36 @@ export class WorkbenchStore {
     }
   }
 
+  async switchToPreview(state: string, files?: { path: string, content: string }[])  {
+    if (state === 'complete') {
+      workbenchStore.installDependencies.set('');
+      this.currentView.set('preview');
+      workbenchStore.previews.set([{
+        port: 3000,
+        ready: true,
+        baseUrl: `https://${appId.get()}.fly.dev/`,
+        isLoading: true,
+        loadingProgress: 0
+      }]);
+      
+      this.setIsFirstDeploy(false);
+    }
+
+    if (state === 'error') {
+      files && this.tmpFiles.set(files);
+      this.actionAlert.set({
+        type: 'machine',
+        title: 'Error uploading files to machine',
+        description: 'Error occurred at upload Files To Machine',
+        content: "Error occurred at upload Files To Machine",
+        source: 'preview',
+      });
+    }
+  }
+
   async uploadFilesTomachine(files: { path: string, content: string }[], installDependencies: string) {
 
     try {
-        this.currentView.set('preview');
         const response = await fetch('/api/deploy-to-machine', {
           method: 'POST',
           body: JSON.stringify({
@@ -618,7 +669,7 @@ export class WorkbenchStore {
         const handleStream = (result: any) => {
           if (result.event === 'complete') {
             workbenchStore.installDependencies.set('');
-
+            this.currentView.set('preview');
             workbenchStore.previews.set([{
               port: 3000,
               ready: true,

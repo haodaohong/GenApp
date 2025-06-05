@@ -310,7 +310,7 @@ export class ActionRunner {
 
     try {
       // 使用 requestAnimationFrame 延迟文件写入，避免阻塞主线程
-      if (typeof window !== 'undefined' && 'requestAnimationFrame' in window) {
+      if (typeof window !== 'undefined') {
         await new Promise<void>((resolve) => {
           setTimeout(() => {
             workbenchStore.files.setKey(`/home/project/${action.filePath}`, { 

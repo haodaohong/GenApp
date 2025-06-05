@@ -124,3 +124,19 @@ export const credits = pgTable(
     createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
   }
 )
+
+
+export const deploy = pgTable('deploy', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text("user_id").references(() => users.id),
+  chatId: uuid('chat_id').references(() => chats.id, {
+    onDelete: "cascade",
+    onUpdate: "cascade",
+  }),
+  siteName: text("sit_name"),
+  siteId: text("site_id"),
+  status: text("status"),
+  url: text("url"),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+})

@@ -19,7 +19,7 @@ export const createFlyApp = async (appName: string) => {
     const response = await fetch('https://api.machines.dev/v1/apps', {
         method: 'POST',
         headers: {
-        'Authorization': `Bearer ${flyToken}`,
+        Authorization: `Bearer ${flyToken}`,
         'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -40,7 +40,7 @@ export const provisionIPsApp = async (appId: string) => {
     const provisionIPv6Response = await fetch('https://api.fly.io/graphql', {
         method: 'POST',
         headers: {
-        'Authorization': `Bearer ${flyToken}`,
+        Authorization: `Bearer ${flyToken}`,
         'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -69,7 +69,7 @@ export const provisionIPsApp = async (appId: string) => {
     const provisionSharedIPv4Response = await fetch('https://api.fly.io/graphql', {
         method: 'POST',
         headers: {
-        'Authorization': `Bearer ${flyToken}`,
+        Authorization: `Bearer ${flyToken}`,
         'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -106,7 +106,7 @@ export const createMachine = async (appId: string, machineName: string) => {
     const machineResponse = await fetch(`https://api.machines.dev/v1/apps/${appId}/machines`, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${flyToken}`,
+            Authorization: `Bearer ${flyToken}`,
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -170,7 +170,7 @@ export const updateApp = async (appId: string, machineName: string) => {
     const machineResponse = await fetch(`https://api.machines.dev/v1/apps/${appId}/machines/${machineName}`, {
         method: 'PUT',
         headers: {
-            'Authorization': `Bearer ${flyToken}`,
+            Authorization: `Bearer ${flyToken}`,
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -186,7 +186,7 @@ export const sendGraphQLRequest = async (query: string, variables: any) => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${flyToken}`,
+                Authorization: `Bearer ${flyToken}`,
             },
             body: JSON.stringify({ query, variables }),
         });
@@ -204,6 +204,12 @@ export const sendGraphQLRequest = async (query: string, variables: any) => {
     } catch (error: any) {
         throw new Error(`发送 GraphQL 请求失败: ${error.message}`);
     }
+}
+
+interface Machine {
+  id: string;
+  state: string;
+  region: string;
 }
 
 export const getMachine = async (appName: string) => {
@@ -230,7 +236,14 @@ export const getMachine = async (appName: string) => {
         return null;
     }
     
-    return machines[0];
+    // 找到第一个 state 不为 'destroyed' 的机器
+    const activeMachine = machines.find((machine: Machine) => !['destroying', 'destroyed'].includes(machine.state));
+    if (!activeMachine) {
+        console.error('未找到活跃的机器');
+        return null;
+    }
+    
+    return activeMachine;
 };
 
 
@@ -469,6 +482,7 @@ const ensureMachineReady = async (appName: string) => {
   
   while (retryCount < maxRetries) {
     const machine = await getMachine(appName);
+    console.log('machine **********', machine);
     
     switch (machine.state) {
       case 'started':
@@ -541,7 +555,7 @@ export const updateFile = async (appName: string, filePath: string, content: str
     const response = await fetch(execUrl, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${flyToken}`,
+            Authorization: `Bearer ${flyToken}`,
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -623,7 +637,7 @@ export const startMachine = async (appId: string, machineId: string) => {
     const response = await fetch(`https://api.machines.dev/v1/apps/${appId}/machines/${machineId}/start`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${flyToken}`,
+        Authorization: `Bearer ${flyToken}`,
         'Content-Type': 'application/json',
       }
     });
@@ -647,7 +661,7 @@ export const executeCommand = async (appId: string, machineId: string, command: 
     const response = await fetch(`https://api.machines.dev/v1/apps/${appId}/machines/${machineId}/exec`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${flyToken}`,
+        Authorization: `Bearer ${flyToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -699,6 +713,37 @@ export const reinstallDependencies = async (appId: string, installDependencies: 
   } catch (error) {
     console.error('Error reinstalling dependencies:', error);
     throw error;
+  }
+};
+
+export const gitPullOriginMain = async (appId: string, isReInstall: boolean) => {
+  try {
+
+    const machine = await ensureMachineReady(appId);
+
+    if (!machine) {
+      throw new Error('Machine not found');
+    }
+
+    // Execute git pull origin main
+    const gitPullResult = await executeCommand(appId, machine.id, ['sh', '-c', `cd /app && git fetch origin && git reset --hard origin/main ${isReInstall ? '&& npm install' : ''}`]);
+    
+    console.log('Git pull result:', gitPullResult);
+
+    if (gitPullResult.exit_code !== 0) {
+      throw new Error(`Git pull failed: ${gitPullResult.stderr}`);
+    }
+
+    return {
+      success: true,
+      result: gitPullResult
+    };
+  } catch (error) {
+    console.error('Error executing git pull:', error);
+    return {
+      success: false,
+      error: error
+    };
   }
 };
 
